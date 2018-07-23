@@ -166,8 +166,8 @@ var (
 
 // Login form structure.
 type Login struct {
-	Username string `form:"username" json:"username" query:"required"`
-	Password string `form:"password" json:"password" query:"required"`
+	Username string `form:"username" json:"username" query:"username"`
+	Password string `form:"password" json:"password" query:"password"`
 }
 
 func (mw *EchoJWTMiddleware) readKeys() error {
