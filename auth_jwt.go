@@ -301,33 +301,37 @@ func (mw *EchoJWTMiddleware) MiddlewareInit() error {
 	return nil
 }
 
-func (mw *EchoJWTMiddleware) ParseToken(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		mw.parseToken(c)
-		return next(c)
+func (mw *EchoJWTMiddleware) ParseToken() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			mw.parseToken(c)
+			return next(c)
+		}
 	}
 }
 
-func (mw *EchoJWTMiddleware) ForceAuthentication(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		if err := c.Get("JWT_TOKEN_ERR"); err != nil {
-			if e, ok := err.(error); ok {
-				return mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(e, c))
+func (mw *EchoJWTMiddleware) ForceAuthentication() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			if err := c.Get("JWT_TOKEN_ERR"); err != nil {
+				if e, ok := err.(error); ok {
+					return mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(e, c))
+				}
 			}
-		}
-		id := c.Get("USER_ID")
-		if !mw.Authorizator(id, c) {
-			return mw.unauthorized(c, http.StatusForbidden, mw.HTTPStatusMessageFunc(ErrForbidden, c))
-		}
+			id := c.Get("USER_ID")
+			if !mw.Authorizator(id, c) {
+				return mw.unauthorized(c, http.StatusForbidden, mw.HTTPStatusMessageFunc(ErrForbidden, c))
+			}
 
-		return next(c)
+			return next(c)
+		}
 	}
 }
 
 // LoginHandler can be used by clients to get a jwt token.
 // Payload needs to be json in the form of {"username": "USERNAME", "password": "PASSWORD"}.
 // Reply will be of the form {"token": "TOKEN"}.
-func (mw *EchoJWTMiddleware) LoginHandler(next echo.HandlerFunc) echo.HandlerFunc {
+func (mw *EchoJWTMiddleware) LoginHandler() echo.HandlerFunc {
 	return func(c echo.Context) error {
 
 		var loginVals Login
@@ -400,7 +404,7 @@ func (mw *EchoJWTMiddleware) signedString(token *jwt.Token) (string, error) {
 // RefreshHandler can be used to refresh a token. The token still needs to be valid on refresh.
 // Shall be put under an endpoint that is using the EchoJWTMiddleware.
 // Reply will be of the form {"token": "TOKEN"}.
-func (mw *EchoJWTMiddleware) RefreshHandler(next echo.HandlerFunc) echo.HandlerFunc {
+func (mw *EchoJWTMiddleware) RefreshHandler() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		token, _ := mw.parseToken(c)
 		claims := token.Claims.(jwt.MapClaims)
