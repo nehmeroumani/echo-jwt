@@ -167,6 +167,7 @@ var (
 // Login form structure.
 type Login struct {
 	Username string `form:"username" json:"username" query:"username"`
+	Email    string `form:"email" json:"email" query:"email"`
 	Password string `form:"password" json:"password" query:"password"`
 }
 
@@ -338,6 +339,10 @@ func (mw *EchoJWTMiddleware) LoginHandler() echo.HandlerFunc {
 
 		if c.Bind(&loginVals) != nil {
 			return mw.unauthorized(c, http.StatusBadRequest, mw.HTTPStatusMessageFunc(ErrMissingLoginValues, c))
+		}
+
+		if loginVals.Username == "" {
+			loginVals.Username = loginVals.Email
 		}
 
 		if mw.Authenticator == nil {
