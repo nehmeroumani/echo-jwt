@@ -305,7 +305,17 @@ func (mw *EchoJWTMiddleware) MiddlewareInit() error {
 func (mw *EchoJWTMiddleware) ParseToken() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			mw.parseToken(c)
+			if t, err := mw.parseToken(c); err == nil {
+				claims := t.Claims.(jwt.MapClaims)
+				id := mw.IdentityHandler(claims)
+				c.Set("JWT_PAYLOAD", claims)
+				c.Set("USER_ID", id)
+				if !mw.Authorizator(id, c) {
+					c.Set("JWT_TOKEN_ERR", ErrForbidden)
+				}
+			} else {
+				c.Set("JWT_TOKEN_ERR", err)
+			}
 			return next(c)
 		}
 	}
@@ -314,16 +324,15 @@ func (mw *EchoJWTMiddleware) ParseToken() echo.MiddlewareFunc {
 func (mw *EchoJWTMiddleware) ForceAuthentication() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			if err := c.Get("JWT_TOKEN_ERR"); err != nil {
-				if e, ok := err.(error); ok {
-					return mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(e, c))
+			if c.Get("USER_ID") != nil {
+				if err := c.Get("JWT_TOKEN_ERR"); err != nil {
+					if e, ok := err.(error); ok {
+						return mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(e, c))
+					}
 				}
+			} else {
+				return mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(ErrForbidden, c))
 			}
-			id := c.Get("USER_ID")
-			if !mw.Authorizator(id, c) {
-				return mw.unauthorized(c, http.StatusForbidden, mw.HTTPStatusMessageFunc(ErrForbidden, c))
-			}
-
 			return next(c)
 		}
 	}
@@ -551,10 +560,6 @@ func (mw *EchoJWTMiddleware) parseToken(c echo.Context) (*jwt.Token, error) {
 	}); err == nil {
 		// save token string if vaild
 		c.Set("JWT_TOKEN", token)
-		claims := t.Claims.(jwt.MapClaims)
-		c.Set("JWT_PAYLOAD", claims)
-		c.Set("USER_ID", mw.IdentityHandler(claims))
-
 		return t, nil
 	}
 	c.Set("JWT_TOKEN_ERR", err)
