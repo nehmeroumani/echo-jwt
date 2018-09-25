@@ -44,7 +44,7 @@ type EchoJWTMiddleware struct {
 	// Callback function that should perform the authentication of the user based on userID and
 	// password. Must return true on success, false on failure. Required.
 	// Option return user data, if so, user data will be stored in Claim Array.
-	Authenticator func(userID string, password string, c echo.Context) (interface{}, bool)
+	Authenticator func(userID string, password string, token string, c echo.Context) (interface{}, bool)
 
 	// Callback function that should perform the authorization of the authenticated user. Called
 	// only after an authentication success. Must return true on success, false on failure.
@@ -127,6 +127,8 @@ var (
 	// ErrMissingLoginValues indicates a user tried to authenticate without username or password
 	ErrMissingLoginValues = errors.New("missing Username or Password")
 
+	ErrInvalidLoginToken = errors.New("invalid login token")
+
 	// ErrFailedAuthentication indicates authentication failed, could be faulty username or password
 	ErrFailedAuthentication = errors.New("incorrect Username or Password")
 
@@ -169,6 +171,7 @@ type Login struct {
 	Username string `form:"username" json:"username" query:"username"`
 	Email    string `form:"email" json:"email" query:"email"`
 	Password string `form:"password" json:"password" query:"password"`
+	Token    string `form:"token" json:"token" query:"token"`
 }
 
 func (mw *EchoJWTMiddleware) readKeys() error {
@@ -358,10 +361,14 @@ func (mw *EchoJWTMiddleware) LoginHandler() echo.HandlerFunc {
 			return mw.unauthorized(c, http.StatusInternalServerError, mw.HTTPStatusMessageFunc(ErrMissingAuthenticatorFunc, c))
 		}
 
-		data, ok := mw.Authenticator(loginVals.Username, loginVals.Password, c)
+		data, ok := mw.Authenticator(loginVals.Username, loginVals.Password, loginVals.Token, c)
 
 		if !ok {
-			return mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(ErrFailedAuthentication, c))
+			if loginVals.Token == "" {
+				return mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(ErrFailedAuthentication, c))
+			} else {
+				return mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(ErrInvalidLoginToken, c))
+			}
 		}
 
 		// Create the token
