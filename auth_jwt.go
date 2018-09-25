@@ -22,6 +22,7 @@ type MapClaims map[string]interface{}
 // Users can get a token by posting a json request to LoginHandler. The token then needs to be passed in
 // the Authentication header. Example: Authorization:Bearer XXX_TOKEN_XXX
 type EchoJWTMiddleware struct {
+	ID string
 	// Realm name to display to the user. Required.
 	Realm string
 
@@ -308,19 +309,16 @@ func (mw *EchoJWTMiddleware) MiddlewareInit() error {
 func (mw *EchoJWTMiddleware) ParseToken() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			c.Set("JWT_PAYLOAD", nil)
-			c.Set("USER_ID", nil)
-			c.Set("JWT_TOKEN_ERR", nil)
 			if t, err := mw.parseToken(c); err == nil {
 				claims := t.Claims.(jwt.MapClaims)
 				id := mw.IdentityHandler(claims)
-				c.Set("JWT_PAYLOAD", claims)
-				c.Set("USER_ID", id)
+				c.Set(mw.ID+"_JWT_PAYLOAD", claims)
+				c.Set(mw.ID+"_USER_ID", id)
 				if !mw.Authorizator(id, c) {
-					c.Set("JWT_TOKEN_ERR", ErrForbidden)
+					c.Set(mw.ID+"_JWT_TOKEN_ERR", ErrForbidden)
 				}
 			} else {
-				c.Set("JWT_TOKEN_ERR", err)
+				c.Set(mw.ID+"_JWT_TOKEN_ERR", err)
 			}
 			return next(c)
 		}
@@ -330,8 +328,8 @@ func (mw *EchoJWTMiddleware) ParseToken() echo.MiddlewareFunc {
 func (mw *EchoJWTMiddleware) ForceAuthentication() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			if c.Get("USER_ID") != nil {
-				if err := c.Get("JWT_TOKEN_ERR"); err != nil {
+			if c.Get(mw.ID+"_USER_ID") != nil {
+				if err := c.Get(mw.ID + "_JWT_TOKEN_ERR"); err != nil {
 					if e, ok := err.(error); ok {
 						return mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(e, c))
 					}
@@ -553,7 +551,7 @@ func (mw *EchoJWTMiddleware) parseToken(c echo.Context) (*jwt.Token, error) {
 	}
 
 	if err != nil {
-		c.Set("JWT_TOKEN_ERR", err)
+		c.Set(mw.ID+"_JWT_TOKEN_ERR", err)
 		return nil, err
 	}
 
@@ -569,10 +567,10 @@ func (mw *EchoJWTMiddleware) parseToken(c echo.Context) (*jwt.Token, error) {
 		return mw.Key, nil
 	}); err == nil {
 		// save token string if vaild
-		c.Set("JWT_TOKEN", token)
+		c.Set(mw.ID+"_JWT_TOKEN", token)
 		return t, nil
 	}
-	c.Set("JWT_TOKEN_ERR", err)
+	c.Set(mw.ID+"_JWT_TOKEN_ERR", err)
 	return nil, err
 }
 
@@ -587,8 +585,8 @@ func (mw *EchoJWTMiddleware) unauthorized(c echo.Context, code int, message stri
 }
 
 // ExtractClaims help to extract the JWT claims
-func ExtractClaims(c echo.Context) jwt.MapClaims {
-	claims := c.Get("JWT_PAYLOAD")
+func ExtractClaims(middlewareId string, c echo.Context) jwt.MapClaims {
+	claims := c.Get(middlewareId + "_JWT_PAYLOAD")
 	if claims == nil {
 		return make(jwt.MapClaims)
 	}
@@ -597,8 +595,8 @@ func ExtractClaims(c echo.Context) jwt.MapClaims {
 }
 
 // GetToken help to get the JWT token string
-func GetToken(c echo.Context) string {
-	token := c.Get("JWT_TOKEN")
+func GetToken(middlewareId string, c echo.Context) string {
+	token := c.Get(middlewareId + "_JWT_TOKEN")
 	if token == nil {
 		return ""
 	}
