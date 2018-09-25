@@ -308,6 +308,9 @@ func (mw *EchoJWTMiddleware) MiddlewareInit() error {
 func (mw *EchoJWTMiddleware) ParseToken() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			c.Set("JWT_PAYLOAD", nil)
+			c.Set("USER_ID", nil)
+			c.Set("JWT_TOKEN_ERR", nil)
 			if t, err := mw.parseToken(c); err == nil {
 				claims := t.Claims.(jwt.MapClaims)
 				id := mw.IdentityHandler(claims)
