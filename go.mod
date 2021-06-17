@@ -1,4 +1,4 @@
-module github.com/nehmeroumani/echo-jwt
+module github.com/nehmeroumani/echo-jwt/v2
 
 go 1.16
 
